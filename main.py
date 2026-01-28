@@ -10,11 +10,15 @@ from typing import List
 
 app = FastAPI(title="Data Normalization API")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Get the directory where main.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
 async def read_index():
-    return FileResponse('static/index.html')
+    return FileResponse(os.path.join(STATIC_DIR, 'index.html'))
 
 processor = ImageProcessor()
 
