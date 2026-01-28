@@ -4,3 +4,4 @@ pillow
 piexif
 python-multipart
 requests
+numpy
