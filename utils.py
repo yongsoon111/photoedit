@@ -498,39 +498,35 @@ class ImageProcessor:
             print(f"[오류] 이미지 열기 실패: {e}")
             raise
 
+        # [Vercel 최적화] 큰 이미지는 먼저 리사이즈 (타임아웃 방지)
+        MAX_DIMENSION = 4032
+        width, height = img.size
+        if width > MAX_DIMENSION or height > MAX_DIMENSION:
+            ratio = min(MAX_DIMENSION / width, MAX_DIMENSION / height)
+            new_size = (int(width * ratio), int(height * ratio))
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+            print(f"[리사이즈] {width}x{height} → {new_size[0]}x{new_size[1]}")
+
         # PNG → JPEG 변환 (piexif는 JPEG만 지원)
         if original_format == 'PNG':
-            print(f"[변환] PNG → JPEG 변환 (EXIF 지원을 위해)")
+            print(f"[변환] PNG → JPEG")
 
-        # 1. Strip Metadata (메타데이터 제거하면서 픽셀 보존)
         # RGBA(투명 배경) → RGB 변환 (JPEG는 투명 미지원)
         if img.mode == 'RGBA':
-            # 흰색 배경에 합성
             background = Image.new('RGB', img.size, (255, 255, 255))
-            background.paste(img, mask=img.split()[3])  # 알파 채널을 마스크로
+            background.paste(img, mask=img.split()[3])
             img = background
-            print(f"[변환] RGBA → RGB (흰색 배경 합성)")
+            print(f"[변환] RGBA → RGB")
         elif img.mode != 'RGB':
             img = img.convert('RGB')
 
         img_no_exif = Image.new(img.mode, img.size)
         img_no_exif.putdata(list(img.getdata()))
 
-        # [Vercel 최적화] 큰 이미지는 리사이즈 (메모리/타임아웃 제한 대응)
-        MAX_DIMENSION = 4032  # 12MP 기준
-        width, height = img_no_exif.size
-        if width > MAX_DIMENSION or height > MAX_DIMENSION:
-            ratio = min(MAX_DIMENSION / width, MAX_DIMENSION / height)
-            new_size = (int(width * ratio), int(height * ratio))
-            img_no_exif = img_no_exif.resize(new_size, Image.Resampling.LANCZOS)
-            print(f"[리사이즈] {width}x{height} → {new_size[0]}x{new_size[1]} (Vercel 최적화)")
-
-        # 2. PRNU Bypass - 센서 지문 세탁 (PIL 기반 - 메모리 효율)
-        # numpy 대신 PIL ImageFilter 사용
-        from PIL import ImageFilter
+        # 2. PRNU Bypass - 센서 지문 세탁 (PIL 기반)
         img_no_exif = img_no_exif.filter(ImageFilter.GaussianBlur(radius=0.3))
         enhancer = ImageEnhance.Sharpness(img_no_exif)
-        img_no_exif = enhancer.enhance(1.1)  # 블러 보정
+        img_no_exif = enhancer.enhance(1.1)
 
         width, height = img_no_exif.size
         print(f"[PRNU] 센서 지문 세탁 완료 (±2 노이즈, {width}x{height})")
