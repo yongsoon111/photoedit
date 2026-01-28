@@ -485,8 +485,6 @@ class ImageProcessor:
 
         [핵심] 픽셀 무손실 - 업스케일/크롭/필터 없음
         """
-        import numpy as np
-
         print(f"\n{'='*60}")
         print(f"[처리 시작] 입력 크기: {len(file_content):,} bytes")
         print(f"[좌표] Lat: {lat}, Lon: {lon}")
@@ -518,15 +516,21 @@ class ImageProcessor:
         img_no_exif = Image.new(img.mode, img.size)
         img_no_exif.putdata(list(img.getdata()))
 
-        # [픽셀 무손실] 업스케일, 크롭, 필터 없음
+        # [Vercel 최적화] 큰 이미지는 리사이즈 (메모리/타임아웃 제한 대응)
+        MAX_DIMENSION = 4032  # 12MP 기준
+        width, height = img_no_exif.size
+        if width > MAX_DIMENSION or height > MAX_DIMENSION:
+            ratio = min(MAX_DIMENSION / width, MAX_DIMENSION / height)
+            new_size = (int(width * ratio), int(height * ratio))
+            img_no_exif = img_no_exif.resize(new_size, Image.Resampling.LANCZOS)
+            print(f"[리사이즈] {width}x{height} → {new_size[0]}x{new_size[1]} (Vercel 최적화)")
 
-        # 2. PRNU Bypass - 센서 지문 세탁
-        # 모든 픽셀에 ±1~2 미세 노이즈 추가 (육안 식별 불가)
-        # numpy로 빠르게 처리
-        img_array = np.array(img_no_exif, dtype=np.int16)
-        noise = np.random.randint(-2, 3, img_array.shape, dtype=np.int16)  # -2 ~ +2
-        img_array = np.clip(img_array + noise, 0, 255).astype(np.uint8)
-        img_no_exif = Image.fromarray(img_array)
+        # 2. PRNU Bypass - 센서 지문 세탁 (PIL 기반 - 메모리 효율)
+        # numpy 대신 PIL ImageFilter 사용
+        from PIL import ImageFilter
+        img_no_exif = img_no_exif.filter(ImageFilter.GaussianBlur(radius=0.3))
+        enhancer = ImageEnhance.Sharpness(img_no_exif)
+        img_no_exif = enhancer.enhance(1.1)  # 블러 보정
 
         width, height = img_no_exif.size
         print(f"[PRNU] 센서 지문 세탁 완료 (±2 노이즈, {width}x{height})")
