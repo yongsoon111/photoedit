@@ -1,3 +1,36 @@
+// Error Popup Function
+function showErrorPopup(title, error, details = {}) {
+    const errorInfo = {
+        title: title,
+        message: error?.message || String(error),
+        stack: error?.stack || 'No stack trace',
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        ...details
+    };
+
+    const errorText = `
+═══════════════════════════════════
+🚨 ERROR: ${errorInfo.title}
+═══════════════════════════════════
+📅 Time: ${errorInfo.timestamp}
+🌐 URL: ${errorInfo.url}
+
+❌ Message:
+${errorInfo.message}
+
+📍 Stack Trace:
+${errorInfo.stack}
+
+📋 Additional Details:
+${JSON.stringify(details, null, 2)}
+═══════════════════════════════════
+    `.trim();
+
+    console.error(errorText);
+    alert(errorText);
+}
+
 // Core Elements
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
@@ -82,13 +115,15 @@ async function handleFile(file) {
 
     try {
         const response = await fetch('/analyze', { method: 'POST', body: formData });
-        if (response.ok) {
-            const report = await response.json();
-            populateInspector(report);
-            if (p) p.textContent = '분석 완료. 변환 준비됨.';
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
+        const report = await response.json();
+        populateInspector(report);
+        if (p) p.textContent = '분석 완료. 변환 준비됨.';
     } catch (e) {
-        console.error(e);
+        showErrorPopup('파일 분석 실패', e, { filename: file.name, fileType: file.type, fileSize: file.size });
         inspectorBody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-red-400">분석 실패</td></tr>';
         if (p) p.textContent = '분석 실패.';
     }
@@ -213,7 +248,10 @@ async function processJob(job) {
             body: job.formData
         });
 
-        if (!response.ok) throw new Error('Processing failed');
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
 
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
@@ -231,8 +269,14 @@ async function processJob(job) {
 
     } catch (error) {
         job.status = 'error';
+        job.errorMessage = error.message;
         renderJobQueue();
-        console.error(`Job ${job.id} failed:`, error);
+        showErrorPopup(`작업 #${job.id} 실패`, error, {
+            jobId: job.id,
+            filename: job.filename,
+            lat: job.formData.get('lat'),
+            lon: job.formData.get('lon')
+        });
     }
 }
 
@@ -320,7 +364,7 @@ async function fetchLocationFromUrl(url) {
             }
         }
     } catch (error) {
-        console.error('Error fetching location:', error);
+        showErrorPopup('위치 추출 실패', error, { url: url });
     } finally {
         urlSpinner.classList.add('hidden');
     }
@@ -374,7 +418,7 @@ copyBtn.addEventListener('click', () => {
             checkIcon.classList.add('hidden');
         }, 2000);
     }).catch(err => {
-        console.error('Failed to copy: ', err);
+        showErrorPopup('클립보드 복사 실패', err, { text: text });
     });
 });
 
