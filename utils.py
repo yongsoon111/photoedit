@@ -494,16 +494,25 @@ class ImageProcessor:
 
         try:
             img = Image.open(BytesIO(file_content))
+            original_format = img.format if img.format else 'JPEG'
             print(f"[이미지] {img.size[0]}x{img.size[1]}, {img.mode}, {img.format}")
         except Exception as e:
             print(f"[오류] 이미지 열기 실패: {e}")
             raise
 
-        # Determine format (default JPEG if generic)
-        original_format = img.format if img.format else 'JPEG'
+        # PNG → JPEG 변환 (piexif는 JPEG만 지원)
+        if original_format == 'PNG':
+            print(f"[변환] PNG → JPEG 변환 (EXIF 지원을 위해)")
 
         # 1. Strip Metadata (메타데이터 제거하면서 픽셀 보존)
-        if img.mode != 'RGB':
+        # RGBA(투명 배경) → RGB 변환 (JPEG는 투명 미지원)
+        if img.mode == 'RGBA':
+            # 흰색 배경에 합성
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])  # 알파 채널을 마스크로
+            img = background
+            print(f"[변환] RGBA → RGB (흰색 배경 합성)")
+        elif img.mode != 'RGB':
             img = img.convert('RGB')
 
         img_no_exif = Image.new(img.mode, img.size)
