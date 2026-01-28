@@ -1,4 +1,4 @@
-// Error Popup Function
+// Error Popup Function - Custom Modal with Copy Button
 function showErrorPopup(title, error, details = {}) {
     const errorInfo = {
         title: title,
@@ -9,8 +9,7 @@ function showErrorPopup(title, error, details = {}) {
         ...details
     };
 
-    const errorText = `
-═══════════════════════════════════
+    const errorText = `═══════════════════════════════════
 🚨 ERROR: ${errorInfo.title}
 ═══════════════════════════════════
 📅 Time: ${errorInfo.timestamp}
@@ -24,11 +23,62 @@ ${errorInfo.stack}
 
 📋 Additional Details:
 ${JSON.stringify(details, null, 2)}
-═══════════════════════════════════
-    `.trim();
+═══════════════════════════════════`;
 
     console.error(errorText);
-    alert(errorText);
+
+    // Remove existing modal if any
+    const existingModal = document.getElementById('error-modal');
+    if (existingModal) existingModal.remove();
+
+    // Create modal
+    const modal = document.createElement('div');
+    modal.id = 'error-modal';
+    modal.innerHTML = `
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+            <div style="background:#1e293b;border-radius:16px;max-width:700px;width:100%;max-height:80vh;display:flex;flex-direction:column;border:1px solid #ef4444;">
+                <div style="padding:16px 20px;border-bottom:1px solid #334155;display:flex;align-items:center;justify-content:space-between;">
+                    <h3 style="color:#ef4444;font-size:18px;font-weight:bold;margin:0;">🚨 ${title}</h3>
+                    <button id="error-modal-close" style="background:#334155;border:none;color:#fff;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;">✕</button>
+                </div>
+                <div style="padding:20px;overflow-y:auto;flex:1;">
+                    <pre id="error-log-text" style="background:#0f172a;padding:16px;border-radius:8px;font-size:12px;color:#94a3b8;white-space:pre-wrap;word-break:break-all;margin:0;font-family:monospace;user-select:text;">${errorText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                </div>
+                <div style="padding:16px 20px;border-top:1px solid #334155;display:flex;gap:12px;">
+                    <button id="error-copy-btn" style="flex:1;padding:12px;background:#6c5ce7;border:none;color:#fff;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;">📋 로그 복사</button>
+                    <button id="error-close-btn" style="flex:1;padding:12px;background:#334155;border:none;color:#fff;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;">닫기</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Copy button
+    document.getElementById('error-copy-btn').onclick = async () => {
+        try {
+            await navigator.clipboard.writeText(errorText);
+            document.getElementById('error-copy-btn').textContent = '✅ 복사 완료!';
+            setTimeout(() => {
+                document.getElementById('error-copy-btn').textContent = '📋 로그 복사';
+            }, 2000);
+        } catch (e) {
+            // Fallback: select text
+            const range = document.createRange();
+            range.selectNode(document.getElementById('error-log-text'));
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            document.getElementById('error-copy-btn').textContent = '텍스트 선택됨 (Ctrl+C)';
+        }
+    };
+
+    // Close buttons
+    const closeModal = () => modal.remove();
+    document.getElementById('error-modal-close').onclick = closeModal;
+    document.getElementById('error-close-btn').onclick = closeModal;
+    modal.querySelector('div').onclick = (e) => {
+        if (e.target === modal.querySelector('div')) closeModal();
+    };
 }
 
 // Core Elements
